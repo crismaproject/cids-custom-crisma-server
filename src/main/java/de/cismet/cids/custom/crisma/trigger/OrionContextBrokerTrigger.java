@@ -302,12 +302,10 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
      */
     public static void main(final String[] args) {
         try {
-           
-            
             BasicConfigurator.configure();
             Logger.getRootLogger().setLevel(Level.ERROR);
             logger.setLevel(Level.ALL);
-            
+
             final QueryBroker queryBroker = QueryFactory.newQuerier("crisma.ait.ac.at", 80, "orion");
             final ObjectFactory objectFactory = new ObjectFactory();
             final String type = "CRISMA.worldstate";

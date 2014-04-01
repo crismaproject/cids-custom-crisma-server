@@ -26,8 +26,10 @@ import com.conwet.samson.jaxb.StatusCode;
 import com.conwet.samson.jaxb.UpdateActionType;
 import com.conwet.samson.jaxb.UpdateContextResponse;
 
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
@@ -37,8 +39,10 @@ import org.openide.util.lookup.ServiceProvider;
 
 import org.w3c.dom.Node;
 
-import java.io.File;
 import java.io.IOException;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import de.cismet.cids.server.rest.domain.types.User;
 
@@ -60,9 +64,49 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
 
     //~ Static fields/initializers ---------------------------------------------
 
-    static final Logger logger = Logger.getLogger(OrionContextBrokerTrigger.class);
+    private static final Logger logger = Logger.getLogger(OrionContextBrokerTrigger.class);
 
-    private static final ThreadLocal<ContextElement> contextThreadLocal = new ThreadLocal();
+    private static final ObjectMapper MAPPER = new ObjectMapper(new JsonFactory());
+
+    // private static final ThreadLocal<ContextElement> contextThreadLocal = new ThreadLocal();
+
+    //~ Enums ------------------------------------------------------------------
+
+    /**
+     * DOCUMENT ME!
+     *
+     * @version  $Revision$, $Date$
+     */
+    public static enum Classification {
+
+        //~ Enum constants -----------------------------------------------------
+
+        WORLDATE_TYPE, DATADESCRIPTOR_TYPE, DATAITEM_TYPE;
+
+        //~ Methods ------------------------------------------------------------
+
+        /**
+         * DOCUMENT ME!
+         *
+         * @return  DOCUMENT ME!
+         */
+        String value() {
+            switch (this) {
+                case WORLDATE_TYPE: {
+                    return "WS-TYPE";
+                }
+                case DATADESCRIPTOR_TYPE: {
+                    return "DATADESCRIPTOR-TYPE";
+                }
+                case DATAITEM_TYPE: {
+                    return "DATAITEM-TYPE";
+                }
+                default: {
+                    return null;
+                }
+            }
+        }
+    }
 
     //~ Instance fields --------------------------------------------------------
 
@@ -70,7 +114,7 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
     final QueryBroker queryBroker;
 
     private final String host = "http://localhost:8890/";
-    private final String contextName = "CRISMA.worldstate";
+    private final String contextName = "CRISMA.worldstates";
 
     //~ Constructors -----------------------------------------------------------
 
@@ -97,52 +141,116 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
      * @param  string  DOCUMENT ME!
      * @param  user    DOCUMENT ME!
      */
-    private void beforeInsertOrCreate(final String string, final User user) {
+    private void beforeInsertOrUpdate(final String string, final User user) {
+        // FIXME: We assume that the client generates the ids. If this behaviour changes
+        // in the future, we have to adapt this method to delegate all operations
+        // that require id and  $self properties to the afterInsertOrUpdate method
         try {
-            final ObjectMapper objectMapper = new ObjectMapper();
-            final JsonNode rootNode = objectMapper.readTree(string);
             final ContextElement contextElement = new ContextElement();
-
-            if (rootNode.hasNonNull("id")) {
-                // Worldstate could be new
-                final String id = rootNode.get("id").asText();
-                contextElement.setEntityId(queryBroker.newEntityId(contextName, id, false));
-            } else {
-                // Worldstate must be new
-
-                final ContextAttribute createdAttribute = new ContextAttribute();
-                createdAttribute.setName("created");
-                createdAttribute.setType("created");
-
-                // type: created, updated, deleted
-                // name: worldstate, dataitem,
-
-            }
-
-//            final String self = rootNode.get("$self").hasNonNull(contextName).asText();
-            final String id = rootNode.get("id").asText();
-
-            final ContextAttribute createdAttribute = new ContextAttribute();
-            createdAttribute.setName("created");
-            createdAttribute.setType("created");
-//            createdAttribute.setContextValue(this.host + self);
-
             final ContextAttributeList contextAttributeList = new ContextAttributeList();
-            contextAttributeList.getContextAttribute().add(createdAttribute);
             contextElement.setContextAttributeList(contextAttributeList);
 
-            logger.info("publish update to context '" + contextName + "': " + createdAttribute.getContextValue());
+            final ObjectNode newWorldstate = (ObjectNode)MAPPER.reader().readTree(string);
 
+            ObjectNode existingWorldstate = null;
+
+            // time attribute
+            ContextAttribute contextAttribute = new ContextAttribute();
+            contextAttribute.setName("time");
+            contextAttribute.setContextValue(String.valueOf(System.currentTimeMillis() / 1000));
+            contextAttributeList.getContextAttribute().add(contextAttribute);
+
+            final String id = this.getEntityCore().getObjectId(newWorldstate);
+            // worldstate id is set -> either new object and id 'invented' by the client
+            // or existing WS that is updated by the client.
+            if (!id.equals("-1")) {
+                contextElement.setEntityId(queryBroker.newEntityId(contextName, id, false));
+                // check if WS is existing -> create ot update
+                existingWorldstate = this.getEntityCore()
+                            .getObject(
+                                    user,
+                                    this.getEntityCore().getClassKey(newWorldstate),
+                                    id,
+                                    "current",
+                                    "worldstatedata,categories,classification",
+                                    "3",
+                                    null,
+                                    "full",
+                                    "default",
+                                    true,
+                                    true);
+            } else {
+                logger.error("id of worldstate is not set!");
+                throw new Error("id of worldstate is not set!");
+            }
+
+            // worldstate updated
+            if (existingWorldstate != null) {
+                contextAttribute = new ContextAttribute();
+                String wsCategory = this.getCategory(user, newWorldstate, Classification.WORLDATE_TYPE);
+                if (wsCategory == null) {
+                    // another try ....
+                    wsCategory = this.getCategory(user, existingWorldstate, Classification.WORLDATE_TYPE);
+                }
+
+                if (wsCategory != null) {
+                    contextAttribute.setName("worldstate" + '_' + wsCategory);
+                } else {
+                    contextAttribute.setName("worldstate");
+                }
+
+                contextAttribute.setType(existingWorldstate.get("name").asText());
+//                contextAttribute.setContextValue(
+//                    "<![CDATA[{\"operation\":\"updated\",\"time\":"
+//                            + (System.currentTimeMillis() / 1000)
+//                            + ",\"URI\":\""
+//                            + this.host
+//                            + existingWorldstate.get("$self").asText()
+//                            + "\"}]]>");
+                contextAttribute.setContextValue("updated");
+                contextAttributeList.getContextAttribute().add(contextAttribute);
+            } else // worldstate created
+            {
+                contextAttribute = new ContextAttribute();
+                final String wsCategory = this.getCategory(user, newWorldstate, Classification.WORLDATE_TYPE);
+
+                if (wsCategory != null) {
+                    contextAttribute.setName("worldstate" + '_' + wsCategory);
+                } else {
+                    contextAttribute.setName("worldstate");
+                }
+
+                contextAttribute.setType(newWorldstate.get("name").asText());
+//                contextAttribute.setContextValue(
+//                    "{\"operation\":\"created\",\"time\":"
+//                            + System.currentTimeMillis()/1000
+//                            + ",\"URI\":\""
+//                            + this.host
+//                            + newWorldstate.get("$self").asText()
+//                            + "\"}");
+                contextAttribute.setContextValue("created");
+                contextAttributeList.getContextAttribute().add(contextAttribute);
+            }
+
+            this.checkDataItems(newWorldstate, existingWorldstate, contextAttributeList, user);
+
+            logger.info("publish update to context '" + contextName + "': " + contextElement.getEntityId().getId());
             final UpdateContextResponse updateContextResponse = queryBroker.updateContext(
                     contextElement,
                     UpdateActionType.APPEND);
             if (logger.isDebugEnabled()) {
                 logger.debug(updateContextResponse);
             }
+
+            printAttributeList(contextAttributeList);
+
+            // store the context element
+            // contextThreadLocal.set(contextElement);
+
         } catch (IOException ex) {
-            logger.fatal(ex);
+            logger.fatal(ex.getMessage(), ex);
         } catch (Exception ex) {
-            logger.fatal(ex);
+            logger.fatal(ex.getMessage(), ex);
         }
     }
 
@@ -151,6 +259,8 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
         if (logger.isDebugEnabled()) {
             logger.debug("beforeInsert");
         }
+
+        this.beforeInsertOrUpdate(string, user);
     }
 
     @Override
@@ -165,44 +275,14 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
         if (logger.isDebugEnabled()) {
             logger.debug("beforeUpdate");
         }
+
+        this.beforeInsertOrUpdate(string, user);
     }
 
     @Override
     public void afterUpdate(final String string, final User user) {
         if (logger.isDebugEnabled()) {
             logger.debug("afterUpdate");
-        }
-        try {
-            final ObjectMapper objectMapper = new ObjectMapper();
-            final JsonNode rootNode = objectMapper.readTree(string);
-
-            final String self = rootNode.get("$self").asText();
-            final String id = rootNode.get("id").asText();
-
-            final ContextElement contextElement = new ContextElement();
-            contextElement.setEntityId(queryBroker.newEntityId(contextName, id, false));
-
-            final ContextAttribute createdAttribute = new ContextAttribute();
-            createdAttribute.setName("created");
-            createdAttribute.setType("created");
-            createdAttribute.setContextValue(this.host + self);
-
-            final ContextAttributeList contextAttributeList = new ContextAttributeList();
-            contextAttributeList.getContextAttribute().add(createdAttribute);
-            contextElement.setContextAttributeList(contextAttributeList);
-
-            logger.info("publish update to context '" + contextName + "': " + createdAttribute.getContextValue());
-
-            final UpdateContextResponse updateContextResponse = queryBroker.updateContext(
-                    contextElement,
-                    UpdateActionType.APPEND);
-            if (logger.isDebugEnabled()) {
-                logger.debug(updateContextResponse);
-            }
-        } catch (IOException ex) {
-            logger.fatal(ex);
-        } catch (Exception ex) {
-            logger.fatal(ex);
         }
     }
 
@@ -302,6 +382,17 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
      */
     public static void main(final String[] args) {
         try {
+            // final Pattern patter = Pattern.compile("^/([^/]*)/");
+            final Pattern patter = Pattern.compile("([^/?]+)(?=/?(?:$|\\?))");
+            final Matcher m = patter.matcher("/CRISMA.classifications/ghgh/1");
+
+            if (m.find()) {
+                final String s = m.group(1);
+                System.out.println(s);
+                // s now contains "BAR"
+            }
+            System.exit(0);
+
             BasicConfigurator.configure();
             Logger.getRootLogger().setLevel(Level.ERROR);
             logger.setLevel(Level.ALL);
@@ -332,6 +423,220 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
             }
         } catch (Exception ex) {
             ex.printStackTrace();
+        }
+    }
+
+    /**
+     * Extracts the category name (key) from a JSOn Object, e.g. a Worldstate or a DataItem
+     *
+     * @param   user            DOCUMENT ME!
+     * @param   jsonNode        dataitem
+     * @param   classification  DOCUMENT ME!
+     *
+     * @return  DOCUMENT ME!
+     */
+    private String getCategory(final User user, final JsonNode jsonNode, final Classification classification) {
+        if (jsonNode.hasNonNull("categories") && jsonNode.get("categories").isArray()) {
+            for (JsonNode categoryNode : jsonNode.get("categories")) {
+                // oh no, it's just a reference!
+                if (categoryNode.hasNonNull("$ref")) {
+                    categoryNode = this.getEntityCore()
+                                .getObject(
+                                        user,
+                                        this.getEntityCore().getClassKey((ObjectNode)categoryNode),
+                                        this.getEntityCore().getObjectId((ObjectNode)categoryNode),
+                                        "current",
+                                        null,
+                                        "2",
+                                        null,
+                                        "full",
+                                        "default",
+                                        true,
+                                        true);
+                }
+
+                // check the classifications
+                if ((categoryNode != null) && categoryNode.hasNonNull("classification")
+                            && categoryNode.get("classification").isObject()) {
+                    JsonNode classificationNode = categoryNode.get("classification");
+                    if (classificationNode.hasNonNull("$ref")) {
+                        classificationNode = this.getEntityCore()
+                                    .getObject(
+                                            user,
+                                            this.getEntityCore().getClassKey((ObjectNode)classificationNode),
+                                            this.getEntityCore().getObjectId((ObjectNode)classificationNode),
+                                            "current",
+                                            null,
+                                            "1",
+                                            null,
+                                            "full",
+                                            "default",
+                                            true,
+                                            true);
+                    }
+
+                    if ((classificationNode != null) && classificationNode.hasNonNull("key")
+                                && classificationNode.get("key").asText().equalsIgnoreCase(
+                                    classification.value())) {
+                        return categoryNode.get("key").asText();
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * DOCUMENT ME!
+     *
+     * @param  newJsonObject         DOCUMENT ME!
+     * @param  existingJsonObject    DOCUMENT ME!
+     * @param  contextAttributeList  DOCUMENT ME!
+     * @param  user                  DOCUMENT ME!
+     */
+    private void checkDataItems(final JsonNode newJsonObject,
+            final JsonNode existingJsonObject,
+            final ContextAttributeList contextAttributeList,
+            final User user) {
+        ContextAttribute contextAttribute;
+
+        if (newJsonObject.hasNonNull("worldstatedata") && newJsonObject.get("worldstatedata").isArray()) {
+            for (JsonNode newDataitem : newJsonObject.get("worldstatedata")) {
+                final String newDataitemId = this.getEntityCore().getObjectId((ObjectNode)newDataitem);
+                // oh no, it's just a reference!
+                if (newDataitem.hasNonNull("$ref")) {
+                    newDataitem = this.getEntityCore()
+                                .getObject(
+                                        user,
+                                        this.getEntityCore().getClassKey((ObjectNode)newDataitem),
+                                        newDataitemId,
+                                        "current",
+                                        null,
+                                        "4",
+                                        null,
+                                        "full",
+                                        "default",
+                                        true,
+                                        true);
+                }
+
+                // probably updated!
+
+                if (!newDataitemId.equals("-1")) {
+                    // check if worldstate really updated!
+
+                    if ((existingJsonObject != null) && existingJsonObject.hasNonNull("worldstatedata")
+                                && existingJsonObject.get("worldstatedata").isArray()) {
+                        // dataitem updated!
+                        for (JsonNode existingDataitem : existingJsonObject.get("worldstatedata")) {
+                            final String existingDataitemId = this.getEntityCore()
+                                        .getObjectId((ObjectNode)existingDataitem);
+                            // oh no, it's just a reference!
+                            if (existingDataitem.hasNonNull("$ref")) {
+                                existingDataitem = this.getEntityCore()
+                                            .getObject(
+                                                    user,
+                                                    this.getEntityCore().getClassKey((ObjectNode)existingDataitem),
+                                                    existingDataitemId,
+                                                    "current",
+                                                    null,
+                                                    "4",
+                                                    null,
+                                                    "full",
+                                                    "default",
+                                                    true,
+                                                    true);
+                            }
+
+                            // dataitem updated!
+                            if (newDataitemId.equals(existingDataitemId)) {
+                                if (
+                                    !newDataitem.get("actualaccessinfo").asText().equals(
+                                                existingDataitem.get("actualaccessinfo").asText())) {
+                                    contextAttribute = new ContextAttribute();
+
+                                    String diCategory = this.getCategory(
+                                            user,
+                                            newDataitem,
+                                            Classification.DATAITEM_TYPE);
+                                    if (diCategory == null) {
+                                        // another try ....
+                                        diCategory = this.getCategory(
+                                                user,
+                                                existingDataitem,
+                                                Classification.DATAITEM_TYPE);
+                                    }
+
+                                    if (diCategory != null) {
+                                        contextAttribute.setName("dataitem" + '_' + diCategory);
+                                    } else {
+                                        contextAttribute.setName("dataitem");
+                                    }
+
+                                    contextAttribute.setType(newDataitem.get("name").asText());
+//                                contextAttribute.setContextValue(
+//                                    "{\"operation\":\"updated\",\"time\":"
+//                                            + System.currentTimeMillis()/1000
+//                                            + ",\"URI\":\""
+//                                            + this.host
+//                                            + existingDataitem.get("$self").asText()
+//                                            + "\"}");
+                                    contextAttribute.setContextValue("updated");
+                                    contextAttributeList.getContextAttribute().add(contextAttribute);
+                                }
+                            } else {
+                                contextAttribute = new ContextAttribute();
+                                final String diCategory = this.getCategory(
+                                        user,
+                                        newDataitem,
+                                        Classification.DATAITEM_TYPE);
+                                if (diCategory != null) {
+                                    contextAttribute.setName("dataitem" + '_' + diCategory);
+                                } else {
+                                    contextAttribute.setName("dataitem");
+                                }
+
+                                contextAttribute.setType(newDataitem.get("name").asText());
+                                contextAttribute.setContextValue(
+                                    "\"operation\":\"created\",\"time\":"
+                                            + (System.currentTimeMillis() / 1000)
+                                            + ",\"URI\":\""
+                                            + this.host
+                                            + newDataitem.get("$self").asText()
+                                            + "\"");
+                                // contextAttribute.setContextValue("created");
+                                contextAttributeList.getContextAttribute().add(contextAttribute);
+                            }
+                        }
+                    } else // either no existing WS  or no existing data item -> di created
+                    {
+                        contextAttribute = new ContextAttribute();
+                        final String diCategory = this.getCategory(user, newDataitem, Classification.DATAITEM_TYPE);
+                        if (diCategory != null) {
+                            contextAttribute.setName("dataitem" + '_' + diCategory);
+                        } else {
+                            contextAttribute.setName("dataitem");
+                        }
+
+                        contextAttribute.setType(newDataitem.get("name").asText());
+//                        contextAttribute.setContextValue(
+//                            "{\"operation\":\"created\",\"time\":"
+//                                    + System.currentTimeMillis()/1000
+//                                    + ",\"URI\":\""
+//                                    + this.host
+//                                    + newDataitem.get("$self").asText()
+//                                    + "\"}");
+                        contextAttribute.setContextValue("created");
+                        contextAttributeList.getContextAttribute().add(contextAttribute);
+                    }
+                } else // new item!
+                {
+                    logger.warn("invalid data item: no id provided!");
+                }
+            }
+        } else {
+            logger.warn("worldstate without dataitems or no worldstate object at all!");
         }
     }
 }

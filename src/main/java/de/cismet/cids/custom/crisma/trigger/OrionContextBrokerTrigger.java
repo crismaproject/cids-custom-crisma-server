@@ -200,14 +200,14 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                 }
 
                 contextAttribute.setType(existingWorldstate.get("name").asText());
-//                contextAttribute.setContextValue(
-//                    "<![CDATA[{\"operation\":\"updated\",\"time\":"
-//                            + (System.currentTimeMillis() / 1000)
-//                            + ",\"URI\":\""
-//                            + this.host
-//                            + existingWorldstate.get("$self").asText()
-//                            + "\"}]]>");
-                contextAttribute.setContextValue("updated");
+                contextAttribute.setContextValue(
+                    "{\\\"operation\\\":\\\"updated\\\",\\\"time\\\":"
+                            + (System.currentTimeMillis() / 1000)
+                            + ",\\\"URI\\\":\\\""
+                            + this.host
+                            + existingWorldstate.get("$self").asText()
+                            + "\\\"}");
+                // contextAttribute.setContextValue("updated");
                 contextAttributeList.getContextAttribute().add(contextAttribute);
             } else // worldstate created
             {
@@ -221,14 +221,14 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                 }
 
                 contextAttribute.setType(newWorldstate.get("name").asText());
-//                contextAttribute.setContextValue(
-//                    "{\"operation\":\"created\",\"time\":"
-//                            + System.currentTimeMillis()/1000
-//                            + ",\"URI\":\""
-//                            + this.host
-//                            + newWorldstate.get("$self").asText()
-//                            + "\"}");
-                contextAttribute.setContextValue("created");
+                contextAttribute.setContextValue(
+                    "{\\\"operation\\\":\\\"created\\\",\\\"time\\\":"
+                            + (System.currentTimeMillis() / 1000)
+                            + ",\\\"URI\\\":\\\""
+                            + this.host
+                            + newWorldstate.get("$self").asText()
+                            + "\\\"}");
+                // contextAttribute.setContextValue("created");
                 contextAttributeList.getContextAttribute().add(contextAttribute);
             }
 
@@ -575,14 +575,14 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                                     }
 
                                     contextAttribute.setType(newDataitem.get("name").asText());
-//                                contextAttribute.setContextValue(
-//                                    "{\"operation\":\"updated\",\"time\":"
-//                                            + System.currentTimeMillis()/1000
-//                                            + ",\"URI\":\""
-//                                            + this.host
-//                                            + existingDataitem.get("$self").asText()
-//                                            + "\"}");
-                                    contextAttribute.setContextValue("updated");
+                                    contextAttribute.setContextValue(
+                                        "{\\\"operation\\\":\\\"updated\\\",\\\"time\\\":"
+                                                + (System.currentTimeMillis() / 1000)
+                                                + ",\\\"URI\\\":\\\""
+                                                + this.host
+                                                + existingDataitem.get("$self").asText()
+                                                + "\\\"}");
+                                    // contextAttribute.setContextValue("updated");
                                     contextAttributeList.getContextAttribute().add(contextAttribute);
                                 }
                             } else {
@@ -599,12 +599,12 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
 
                                 contextAttribute.setType(newDataitem.get("name").asText());
                                 contextAttribute.setContextValue(
-                                    "\"operation\":\"created\",\"time\":"
+                                    "{\\\"operation\\\":\\\"created\\\",\\\"time\\\":"
                                             + (System.currentTimeMillis() / 1000)
-                                            + ",\"URI\":\""
+                                            + ",\\\"URI\\\":\\\""
                                             + this.host
                                             + newDataitem.get("$self").asText()
-                                            + "\"");
+                                            + "\\\"}");
                                 // contextAttribute.setContextValue("created");
                                 contextAttributeList.getContextAttribute().add(contextAttribute);
                             }
@@ -620,14 +620,14 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                         }
 
                         contextAttribute.setType(newDataitem.get("name").asText());
-//                        contextAttribute.setContextValue(
-//                            "{\"operation\":\"created\",\"time\":"
-//                                    + System.currentTimeMillis()/1000
-//                                    + ",\"URI\":\""
-//                                    + this.host
-//                                    + newDataitem.get("$self").asText()
-//                                    + "\"}");
-                        contextAttribute.setContextValue("created");
+                        contextAttribute.setContextValue(
+                            "{\\\"operation\\\":\\\"created\\\",\\\"time\\\":"
+                                    + (System.currentTimeMillis() / 1000)
+                                    + ",\\\"URI\\\":\\\""
+                                    + this.host
+                                    + newDataitem.get("$self").asText()
+                                    + "\\\"}");
+                        // contextAttribute.setContextValue("created");
                         contextAttributeList.getContextAttribute().add(contextAttribute);
                     }
                 } else // new item!

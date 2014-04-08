@@ -113,8 +113,11 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
     final CidsTriggerKey cidsTriggerKey = new CidsTriggerKey(ALL, "worldstates");
     final QueryBroker queryBroker;
 
-    private final String host = "http://localhost:8890/";
+    // FIXME: make this configurable!
+    private final String host = "http://crisma.cismet.de/pilotC/icmm_api";
     private final String contextName = "CRISMA.worldstates";
+    private final String[] orionInstance = { "crisma.ait.ac.at", "orion" };
+    private final int orionPort = 80;
 
     //~ Constructors -----------------------------------------------------------
 
@@ -126,8 +129,8 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
         Logger.getRootLogger().setLevel(Level.ERROR);
         logger.setLevel(Level.ALL);
 
-        logger.info("Orion Query Broker: connecting to crisma.ait.ac.at:80");
-        queryBroker = QueryFactory.newQuerier("crisma.ait.ac.at", 80, "orion");
+        logger.info("Orion Query Broker: connecting to Orion Broker '" + orionInstance[0] + ":" + orionPort + "'");
+        queryBroker = QueryFactory.newQuerier(orionInstance[0], orionPort, orionInstance[1]);
         if (logger.isDebugEnabled()) {
             logger.debug("connected to Orion Query Broker");
         }
@@ -164,8 +167,7 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
             // worldstate id is set -> either new object and id 'invented' by the client
             // or existing WS that is updated by the client.
             if (!id.equals("-1")) {
-                contextElement.setEntityId(queryBroker.newEntityId(contextName, id, false));
-                // check if WS is existing -> create ot update
+                // check if WS is existing -> create or update
                 existingWorldstate = this.getEntityCore()
                             .getObject(
                                     user,
@@ -179,6 +181,8 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                                     "default",
                                     true,
                                     true);
+
+                contextElement.setEntityId(queryBroker.newEntityId(contextName, id, false));
             } else {
                 logger.error("id of worldstate is not set!");
                 throw new Error("id of worldstate is not set!");
@@ -232,7 +236,18 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                 contextAttributeList.getContextAttribute().add(contextAttribute);
             }
 
-            this.checkDataItems(newWorldstate, existingWorldstate, contextAttributeList, user);
+            // check worldstate data
+            this.checkDataItems(
+                newWorldstate,
+                existingWorldstate,
+                contextAttributeList,
+                user,
+                "worldstatedata",
+                "dataslot");
+
+            // check icc data
+            this.checkDataItems(newWorldstate, existingWorldstate, contextAttributeList,
+                user, "iccdata", "icc");
 
             logger.info("publish update to context '" + contextName + "': " + contextElement.getEntityId().getId());
             final UpdateContextResponse updateContextResponse = queryBroker.updateContext(
@@ -383,15 +398,15 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
     public static void main(final String[] args) {
         try {
             // final Pattern patter = Pattern.compile("^/([^/]*)/");
-            final Pattern patter = Pattern.compile("([^/?]+)(?=/?(?:$|\\?))");
-            final Matcher m = patter.matcher("/CRISMA.classifications/ghgh/1");
-
-            if (m.find()) {
-                final String s = m.group(1);
-                System.out.println(s);
-                // s now contains "BAR"
-            }
-            System.exit(0);
+// final Pattern patter = Pattern.compile("([^/?]+)(?=/?(?:$|\\?))");
+// final Matcher m = patter.matcher("/CRISMA.classifications/ghgh/1");
+//
+// if (m.find()) {
+// final String s = m.group(1);
+// System.out.println(s);
+// // s now contains "BAR"
+// }
+// System.exit(0);
 
             BasicConfigurator.configure();
             Logger.getRootLogger().setLevel(Level.ERROR);
@@ -494,15 +509,22 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
      * @param  existingJsonObject    DOCUMENT ME!
      * @param  contextAttributeList  DOCUMENT ME!
      * @param  user                  DOCUMENT ME!
+     * @param  arrayFieldName        DOCUMENT ME!
+     * @param  contextAttributeName  DOCUMENT ME!
      */
     private void checkDataItems(final JsonNode newJsonObject,
             final JsonNode existingJsonObject,
             final ContextAttributeList contextAttributeList,
-            final User user) {
+            final User user,
+            final String arrayFieldName,
+            final String contextAttributeName) {
         ContextAttribute contextAttribute;
+        if (logger.isDebugEnabled()) {
+            logger.debug("searching for '" + contextAttributeName + "' data items in '" + arrayFieldName + "'");
+        }
 
-        if (newJsonObject.hasNonNull("worldstatedata") && newJsonObject.get("worldstatedata").isArray()) {
-            for (JsonNode newDataitem : newJsonObject.get("worldstatedata")) {
+        if (newJsonObject.hasNonNull(arrayFieldName) && newJsonObject.get(arrayFieldName).isArray()) {
+            for (JsonNode newDataitem : newJsonObject.get(arrayFieldName)) {
                 final String newDataitemId = this.getEntityCore().getObjectId((ObjectNode)newDataitem);
                 // oh no, it's just a reference!
                 if (newDataitem.hasNonNull("$ref")) {
@@ -526,10 +548,10 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                 if (!newDataitemId.equals("-1")) {
                     // check if worldstate really updated!
 
-                    if ((existingJsonObject != null) && existingJsonObject.hasNonNull("worldstatedata")
-                                && existingJsonObject.get("worldstatedata").isArray()) {
+                    if ((existingJsonObject != null) && existingJsonObject.hasNonNull(arrayFieldName)
+                                && existingJsonObject.get(arrayFieldName).isArray()) {
                         // dataitem updated!
-                        for (JsonNode existingDataitem : existingJsonObject.get("worldstatedata")) {
+                        for (JsonNode existingDataitem : existingJsonObject.get(arrayFieldName)) {
                             final String existingDataitemId = this.getEntityCore()
                                         .getObjectId((ObjectNode)existingDataitem);
                             // oh no, it's just a reference!
@@ -569,9 +591,9 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                                     }
 
                                     if (diCategory != null) {
-                                        contextAttribute.setName("dataitem" + '_' + diCategory);
+                                        contextAttribute.setName(contextAttributeName + '_' + diCategory);
                                     } else {
-                                        contextAttribute.setName("dataitem");
+                                        contextAttribute.setName(contextAttributeName);
                                     }
 
                                     contextAttribute.setType(newDataitem.get("name").asText());
@@ -592,9 +614,9 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                                         newDataitem,
                                         Classification.DATAITEM_TYPE);
                                 if (diCategory != null) {
-                                    contextAttribute.setName("dataitem" + '_' + diCategory);
+                                    contextAttribute.setName(contextAttributeName + '_' + diCategory);
                                 } else {
-                                    contextAttribute.setName("dataitem");
+                                    contextAttribute.setName(contextAttributeName);
                                 }
 
                                 contextAttribute.setType(newDataitem.get("name").asText());
@@ -614,9 +636,9 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                         contextAttribute = new ContextAttribute();
                         final String diCategory = this.getCategory(user, newDataitem, Classification.DATAITEM_TYPE);
                         if (diCategory != null) {
-                            contextAttribute.setName("dataitem" + '_' + diCategory);
+                            contextAttribute.setName(contextAttributeName + '_' + diCategory);
                         } else {
-                            contextAttribute.setName("dataitem");
+                            contextAttribute.setName(contextAttributeName);
                         }
 
                         contextAttribute.setType(newDataitem.get("name").asText());
@@ -636,7 +658,7 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                 }
             }
         } else {
-            logger.warn("worldstate without dataitems or no worldstate object at all!");
+            logger.warn("worldstate without dataitems / icc data or no worldstate object at all!");
         }
     }
 }

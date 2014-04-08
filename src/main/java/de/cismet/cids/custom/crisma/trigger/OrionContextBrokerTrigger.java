@@ -115,7 +115,7 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
 
     // FIXME: make this configurable!
     private final String host = "http://crisma.cismet.de/pilotC/icmm_api";
-    private final String contextName = "CRISMA.worldstates";
+    // private final String contextName = "CRISMA.worldstates";
     private final String[] orionInstance = { "crisma.ait.ac.at", "orion" };
     private final int orionPort = 80;
 
@@ -164,6 +164,8 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
             contextAttributeList.getContextAttribute().add(contextAttribute);
 
             final String id = this.getEntityCore().getObjectId(newWorldstate);
+            final String contextName = this.getEntityCore().getClassKey(newWorldstate);
+
             // worldstate id is set -> either new object and id 'invented' by the client
             // or existing WS that is updated by the client.
             if (!id.equals("-1")) {
@@ -171,7 +173,7 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                 existingWorldstate = this.getEntityCore()
                             .getObject(
                                     user,
-                                    this.getEntityCore().getClassKey(newWorldstate),
+                                    contextName,
                                     id,
                                     "current",
                                     "worldstatedata,categories,classification",
@@ -260,7 +262,7 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                     UpdateActionType.APPEND);
             if (logger.isDebugEnabled()) {
                 logger.debug(updateContextResponse);
-            }            
+            }
 
             // store the context element
             // contextThreadLocal.set(contextElement);

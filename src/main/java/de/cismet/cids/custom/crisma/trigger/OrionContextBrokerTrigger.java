@@ -115,7 +115,7 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
 
     // FIXME: make this configurable!
     private final String host = "http://crisma.cismet.de/pilotC/icmm_api";
-    private final String contextName = "CRISMA.worldstates";
+    // private final String contextName = "CRISMA.worldstates";
     private final String[] orionInstance = { "crisma.ait.ac.at", "orion" };
     private final int orionPort = 80;
 
@@ -164,6 +164,8 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
             contextAttributeList.getContextAttribute().add(contextAttribute);
 
             final String id = this.getEntityCore().getObjectId(newWorldstate);
+            final String contextName = this.getEntityCore().getClassKey(newWorldstate);
+
             // worldstate id is set -> either new object and id 'invented' by the client
             // or existing WS that is updated by the client.
             if (!id.equals("-1")) {
@@ -171,7 +173,7 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                 existingWorldstate = this.getEntityCore()
                             .getObject(
                                     user,
-                                    this.getEntityCore().getClassKey(newWorldstate),
+                                    contextName,
                                     id,
                                     "current",
                                     "worldstatedata,categories,classification",
@@ -181,8 +183,12 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                                     "default",
                                     true,
                                     true);
-
-                contextElement.setEntityId(queryBroker.newEntityId(contextName, id, false));
+                final String simulationId = this.getSimulationId(newWorldstate, existingWorldstate);
+                if ((simulationId != null) && !simulationId.isEmpty()) {
+                    contextElement.setEntityId(queryBroker.newEntityId(contextName, (simulationId + "_" + id), false));
+                } else {
+                    contextElement.setEntityId(queryBroker.newEntityId(contextName, id, false));
+                }
             } else {
                 logger.error("id of worldstate is not set!");
                 throw new Error("id of worldstate is not set!");
@@ -250,14 +256,13 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
                 user, "iccdata", "icc");
 
             logger.info("publish update to context '" + contextName + "': " + contextElement.getEntityId().getId());
+            printAttributeList(contextAttributeList);
             final UpdateContextResponse updateContextResponse = queryBroker.updateContext(
                     contextElement,
                     UpdateActionType.APPEND);
             if (logger.isDebugEnabled()) {
                 logger.debug(updateContextResponse);
             }
-
-            printAttributeList(contextAttributeList);
 
             // store the context element
             // contextThreadLocal.set(contextElement);
@@ -660,5 +665,23 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
         } else {
             logger.warn("worldstate without dataitems / icc data or no worldstate object at all!");
         }
+    }
+
+    /**
+     * Customisation for Pilot C: get the ooiRepositorySimulationId if it exists in the worldstate
+     *
+     * @param   newWorldstate       DOCUMENT ME!
+     * @param   existingWorldstate  DOCUMENT ME!
+     *
+     * @return  ooiRepositorySimulationId, if existing
+     */
+    private String getSimulationId(final ObjectNode newWorldstate, final ObjectNode existingWorldstate) {
+        if (newWorldstate.hasNonNull("ooiRepositorySimulationId")) {
+            return newWorldstate.get("ooiRepositorySimulationId").asText();
+        } else if ((existingWorldstate != null) && existingWorldstate.hasNonNull("ooiRepositorySimulationId")) {
+            return existingWorldstate.get("ooiRepositorySimulationId").asText();
+        }
+
+        return null;
     }
 }

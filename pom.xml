@@ -6,7 +6,7 @@
     <parent>
         <groupId>de.cismet.cids</groupId>
         <artifactId>cids-parent</artifactId>
-        <version>3.0-SNAPSHOT</version>
+        <version>3.0</version>
     </parent>
     
     <groupId>de.cismet.cids</groupId>
@@ -48,6 +48,12 @@
             <email>pascal.dihe@cismet.de</email>
             <organization>cismet GmbH</organization>
         </developer>
+        <developer>
+            <id>mscholl</id>
+            <name>Martin Scholl</name>
+            <email>martin.scholl@cismet.de</email>
+            <organization>cismet GmbH</organization>
+        </developer>
     </developers>
 
     <properties>
@@ -81,12 +87,12 @@
         <dependency>
             <groupId>de.cismet.cids</groupId>
             <artifactId>cids-server-rest</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>0.1.1</version>
         </dependency>
         <dependency>
             <groupId>de.cismet.custom</groupId>
             <artifactId>samson</artifactId>
-            <version>1.1-SNAPSHOT</version>
+            <version>1.1</version>
             <type>jar</type>
         </dependency>
         <dependency>

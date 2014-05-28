@@ -25,12 +25,10 @@ import org.openide.util.lookup.ServiceProvider;
 import java.io.File;
 import java.io.IOException;
 
-import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import java.util.ArrayList;
-import java.util.logging.Level;
 
 import de.cismet.cids.server.rest.cores.NodeCore;
 import de.cismet.cids.server.rest.domain.RuntimeContainer;
@@ -306,6 +304,17 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
             node.setKey(id);
             node.setName(name);
             node.setObjectKey(objectKey);
+            if (jsonWorldstate.hasNonNull("childworldstates") && jsonWorldstate.get("childworldstates").isArray()) {
+//                final ArrayNode array = (ArrayNode)jsonWorldstate.get("childworldstates");
+//                if (array.size() > 0) {
+//                    node.setIcon("icon-folder-close.png");
+//                } else {
+//                    node.setIcon("icon-file.png");
+//                }
+            } else {
+                node.setLeaf(true);
+//                node.setIcon("icon-file.png");
+            }
             // create a file that contains a json representation of the node object, with the id as name
             final File f;
             if ((nodePath != null) && !nodePath.isEmpty()) {

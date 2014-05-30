@@ -115,14 +115,14 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
                 } else {
                     // a new node is added as child
                     // build the Path up to the root node
-                    final String nodePath = getNodePath(user, newWorldstate);
+                    final String nodePath = WorldstateNodeTriggerHelper.getNodePath(user, newWorldstate);
                     createWorldstateNode(user, newWorldstate, nodePath);
                 }
             } else {
                 // worldstate updated
 
                 // update the children directory
-                final String nodePath = getNodePath(user, existingWorldstate);
+                final String nodePath = WorldstateNodeTriggerHelper.getNodePath(user, existingWorldstate);
                 createWorldstateNode(user, newWorldstate, nodePath);
 
                 // Check if the parent has changed?
@@ -134,17 +134,17 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
                 if (oldParentNonNull && newParentNonNull) {
                     pathChanged = !existingWorldstate.get("parentworldstate")
                                 .equals(newWorldstate.get("parentworldstate"));
-                    oldParentPath = getNodePath(user, existingWorldstate);
-                    newParentPath = getNodePath(user, newWorldstate);
+                    oldParentPath = WorldstateNodeTriggerHelper.getNodePath(user, existingWorldstate);
+                    newParentPath = WorldstateNodeTriggerHelper.getNodePath(user, newWorldstate);
                 } else {
                     pathChanged = (oldParentNonNull && !newParentNonNull) || (!oldParentNonNull && newParentNonNull);
                     if (oldParentNonNull) {
-                        oldParentPath = getNodePath(user, existingWorldstate);
+                        oldParentPath = WorldstateNodeTriggerHelper.getNodePath(user, existingWorldstate);
                     } else {
                         oldParentPath = "";
                     }
                     if (newParentNonNull) {
-                        newParentPath = getNodePath(user, newWorldstate);
+                        newParentPath = WorldstateNodeTriggerHelper.getNodePath(user, newWorldstate);
                     } else {
                         newParentPath = "";
                     }
@@ -152,7 +152,7 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
 
                 // we need to move the node
                 if (pathChanged) {
-                    final String fileName = getNodeFileName(user, newWorldstate);
+                    final String fileName = WorldstateNodeTriggerHelper.getNodeFileName(user, newWorldstate);
                     final Path f = new File(nodeBaseFolder + File.separator + oldParentPath + File.separator + fileName)
                                 .toPath();
                     final Path f2 = new File(nodeBaseFolder + File.separator + newParentPath).toPath();
@@ -210,7 +210,7 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
             final User user) {
         final ObjectNode worldstate = this.getEntityCore()
                     .getObject(user, classKey, objectId, "current", null, "1", null, null, null, true, true);
-        final String nodePath = getNodePath(user, worldstate);
+        final String nodePath = WorldstateNodeTriggerHelper.getNodePath(user, worldstate);
         final File json = new File(nodeBaseFolder + File.separator + nodePath + File.separator + objectId + ".json");
         final File childrenFolder = new File(nodeBaseFolder + File.separator + nodePath + File.separator + objectId);
         json.delete();
@@ -248,67 +248,17 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
     /**
      * DOCUMENT ME!
      *
-     * @param   user  DOCUMENT ME!
-     * @param   node  DOCUMENT ME!
-     *
-     * @return  DOCUMENT ME!
+     * @param  user            DOCUMENT ME!
+     * @param  jsonWorldstate  DOCUMENT ME!
+     * @param  nodePath        DOCUMENT ME!
      */
-    private String getNodePath(final User user, final ObjectNode node) {
-        final ArrayList<String> nodePath = new ArrayList<String>();
-        final StringBuilder pathBuilder = new StringBuilder();
-        ObjectNode tmp = node.deepCopy();
-        while (tmp.hasNonNull("parentworldstate")) {
-            final ObjectNode parentRef = (ObjectNode)tmp.get("parentworldstate");
-            final ObjectNode parent = this.getEntityCore()
-                        .getObject(
-                            user,
-                            this.getEntityCore().getClassKey(parentRef),
-                            this.getEntityCore().getObjectId(parentRef),
-                            "current",
-                            null,
-                            "1",
-                            null,
-                            "full",
-                            "default",
-                            true,
-                            true);
-            final String parentId = this.getEntityCore().getObjectId(parent);
-            nodePath.add(parentId);
-            tmp = parent;
-        }
-        if (!nodePath.isEmpty()) {
-            for (int i = nodePath.size() - 1; i >= 0; i--) {
-                pathBuilder.append(nodePath.get(i));
-                pathBuilder.append(File.separator);
-            }
-            return pathBuilder.toString();
-        }
-        return "";
-    }
-
     /**
      * DOCUMENT ME!
      *
-     * @param   user        DOCUMENT ME!
-     * @param   worldstate  DOCUMENT ME!
-     *
-     * @return  DOCUMENT ME!
+     * @param  user            DOCUMENT ME!
+     * @param  jsonWorldstate  DOCUMENT ME!
+     * @param  nodePath        DOCUMENT ME!
      */
-    private String getNodeFileName(final User user, final ObjectNode worldstate) {
-        final String nodePath = getNodePath(user, worldstate);
-        final String id = this.getEntityCore().getObjectId(worldstate);
-        final String[] splittedNodePath = nodePath.split(File.separator);
-        final StringBuilder keyBuilder = new StringBuilder();
-        if (!nodePath.isEmpty()) {
-            for (int i = 0; i < splittedNodePath.length; i++) {
-                keyBuilder.append(splittedNodePath[i]);
-                keyBuilder.append(".");
-            }
-        }
-        keyBuilder.append(id);
-        return keyBuilder.toString();
-    }
-
     /**
      * DOCUMENT ME!
      *
@@ -318,29 +268,10 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
      */
     private void createWorldstateNode(final User user, final ObjectNode jsonWorldstate, final String nodePath) {
         try {
-            // determine the id for the new Node Object
-            // ToDo Check if the node id can be the same as the worldstate id
-            final String id = this.getEntityCore().getObjectId(jsonWorldstate);
-            final String name = jsonWorldstate.get("name").asText();
-            final String objectKey = jsonWorldstate.get("$self").asText();
+            final String id = entityCore.getObjectId(jsonWorldstate);
             // create a new Node object
-            final Node node = new Node();
-            final String[] splittedNodePath = nodePath.split(File.separator);
-            final String key = getNodeFileName(user, jsonWorldstate);
-            node.setKey(key);
-            node.setName(name);
-            node.setObjectKey(objectKey);
-            if (jsonWorldstate.hasNonNull("childworldstates") && jsonWorldstate.get("childworldstates").isArray()) {
-//                final ArrayNode array = (ArrayNode)jsonWorldstate.get("childworldstates");
-//                if (array.size() > 0) {
-//                    node.setIcon("icon-folder-close.png");
-//                } else {
-//                    node.setIcon("icon-file.png");
-//                }
-            } else {
-                node.setLeaf(true);
-//                node.setIcon("icon-file.png");
-            }
+            final Node node = WorldstateNodeTriggerHelper.createScenarioNode(user, jsonWorldstate);
+            final String key = WorldstateNodeTriggerHelper.getNodeFileName(user, jsonWorldstate);
             // create a file that contains a json representation of the node object, with the id as name
             final File f;
             if ((nodePath != null) && !nodePath.isEmpty()) {
@@ -366,7 +297,7 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
                                 "default",
                                 true,
                                 true);
-                createWorldstateNode(user, parent, getNodePath(user, parent));
+                createWorldstateNode(user, parent, WorldstateNodeTriggerHelper.getNodePath(user, parent));
             }
 
             MAPPER.writeValue(f, node);

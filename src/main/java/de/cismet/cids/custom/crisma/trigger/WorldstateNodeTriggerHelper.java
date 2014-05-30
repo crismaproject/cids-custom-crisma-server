@@ -12,6 +12,7 @@
  */
 package de.cismet.cids.custom.crisma.trigger;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.File;
@@ -119,16 +120,10 @@ public class WorldstateNodeTriggerHelper {
         node.setKey(key);
         node.setName(name);
         node.setObjectKey(objectKey);
-        if (jsonWorldstate.hasNonNull("childworldstates") && jsonWorldstate.get("childworldstates").isArray()) {
-//                final ArrayNode array = (ArrayNode)jsonWorldstate.get("childworldstates");
-//                if (array.size() > 0) {
-//                    node.setIcon("icon-folder-close.png");
-//                } else {
-//                    node.setIcon("icon-file.png");
-//                }
-        } else {
+        if (!(jsonWorldstate.hasNonNull("childworldstates")
+                        && jsonWorldstate.get("childworldstates").isArray()
+                        && (((ArrayNode)jsonWorldstate.get("childworldstates")).size() > 0))) {
             node.setLeaf(true);
-//                node.setIcon("icon-file.png");
         }
         return node;
     }

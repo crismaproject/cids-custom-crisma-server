@@ -24,10 +24,6 @@ import org.openide.util.lookup.ServiceProvider;
 import java.io.File;
 import java.io.IOException;
 
-import java.nio.file.Files;
-
-import java.util.logging.Level;
-
 import de.cismet.cids.server.rest.cores.NodeCore;
 import de.cismet.cids.server.rest.domain.RuntimeContainer;
 import de.cismet.cids.server.rest.domain.Starter;
@@ -111,7 +107,7 @@ public class WorldstateScenarioNodeTrigger extends AbstractEntityCoreAwareCidsTr
      */
     private void createScenarioNode(final User user, final ObjectNode worldstate) throws IOException {
         final String scenarioFileName = WorldstateNodeTriggerHelper.getNodeFileName(user, worldstate);
-        final File scenarioFile = new File(scenarioNodeBaseFolder + File.separator + scenarioFileName);
+        final File scenarioFile = new File(scenarioNodeBaseFolder + File.separator + scenarioFileName + ".json");
         if (!scenarioFile.exists()) {
             final Node scenarioNode = WorldstateNodeTriggerHelper.createScenarioNode(user, worldstate);
             MAPPER.writeValue(scenarioFile, scenarioNode);

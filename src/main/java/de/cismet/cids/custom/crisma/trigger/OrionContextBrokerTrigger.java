@@ -41,9 +41,6 @@ import org.w3c.dom.Node;
 
 import java.io.IOException;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import de.cismet.cids.server.rest.domain.types.User;
 
 import de.cismet.cids.trigger.AbstractEntityCoreAwareCidsTrigger;
@@ -114,10 +111,10 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
     final QueryBroker queryBroker;
 
     // FIXME: make this configurable!
-    private final String host = "http://crisma.cismet.de/pilotC/icmm_api";
-    // private final String contextName = "CRISMA.worldstates";
-    private final String[] orionInstance = { "crisma.ait.ac.at", "orion" };
-    private final int orionPort = 80;
+    private final String host;
+    private final String orionHost;
+    private final String orionPort;
+    private final String orionPath;
 
     //~ Constructors -----------------------------------------------------------
 
@@ -129,8 +126,38 @@ public class OrionContextBrokerTrigger extends AbstractEntityCoreAwareCidsTrigge
         Logger.getRootLogger().setLevel(Level.ERROR);
         logger.setLevel(Level.ALL);
 
-        logger.info("Orion Query Broker: connecting to Orion Broker '" + orionInstance[0] + ":" + orionPort + "'");
-        queryBroker = QueryFactory.newQuerier(orionInstance[0], orionPort, orionInstance[1]);
+        if (System.getProperty("CRISMA_THIS_HOST") != null) {
+            host = System.getProperty("CRISMA_THIS_HOST");
+        } else {
+            host = "http://crisma.cismet.de/pilotC/icmm_api";
+        }
+
+        if (System.getProperty("CRISMA_ORION_HOST") != null) {
+            orionHost = System.getProperty("CRISMA_ORION_HOST");
+        } else {
+            orionHost = "crisma.ait.ac.at";
+        }
+
+        if (System.getProperty("CRISMA_ORION_PORT") != null) {
+            orionPort = System.getProperty("CRISMA_ORION_PORT");
+        } else {
+            orionPort = "80";
+        }
+
+        if (System.getProperty("CRISMA_ORION_PATH") != null) {
+            orionPath = System.getProperty("CRISMA_ORION_PATH");
+        } else {
+            orionPath = "orion";
+        }
+
+        logger.info("Orion Query Broker: connecting to Orion Broker '" + orionHost + ":" + orionPort + "/" + orionPath
+                    + "'");
+        try {
+            queryBroker = QueryFactory.newQuerier(orionHost, Integer.parseInt(orionPort), orionPath);
+        } catch (RuntimeException exception) {
+            logger.fatal("query broker not correctly initialised", exception);
+            throw exception;
+        }
         if (logger.isDebugEnabled()) {
             logger.debug("connected to Orion Query Broker");
         }

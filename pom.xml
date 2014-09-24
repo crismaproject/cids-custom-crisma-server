@@ -86,7 +86,7 @@
         <dependency>
             <groupId>de.cismet.cids</groupId>
             <artifactId>cids-server-rest</artifactId>
-            <version>0.1.2</version>
+            <version>0.2</version>
         </dependency>
         <dependency>
             <groupId>de.cismet.custom</groupId>

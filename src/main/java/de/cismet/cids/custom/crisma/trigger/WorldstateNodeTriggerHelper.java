@@ -54,10 +54,9 @@ public class WorldstateNodeTriggerHelper {
         final StringBuilder keyBuilder = new StringBuilder();
         final String fileSeparator;
         if(File.separator.equals("\\")) {
-            fileSeparator = "\\";
+            fileSeparator = "\\\\";
         } else {
             fileSeparator = File.separator;
-        
         }
         
         if(nodePath.length() > 0) {
@@ -110,11 +109,11 @@ public class WorldstateNodeTriggerHelper {
                 pathBuilder.append(nodePath.get(i));
                 pathBuilder.append(File.separator);
             }
-            LOGGER.debug("WS["+tmp.get("id").asText()+"] - node path: '"+pathBuilder.toString()+"'");
+            //LOGGER.debug("WS["+tmp.get("id").asText()+"] - node path: '"+pathBuilder.toString()+"'");
             return pathBuilder.toString();
         }
         
-        LOGGER.debug("WS["+tmp.get("id").asText()+"] - no node path for WS found, probably a root WS");
+        //LOGGER.debug("WS["+tmp.get("id").asText()+"] - no node path for WS found, probably a root WS");
         return "";
     }
 

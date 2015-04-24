@@ -23,6 +23,7 @@ import de.cismet.cids.server.rest.cores.EntityCore;
 import de.cismet.cids.server.rest.domain.RuntimeContainer;
 import de.cismet.cids.server.rest.domain.data.Node;
 import de.cismet.cids.server.rest.domain.types.User;
+import org.apache.log4j.Logger;
 
 /**
  * DOCUMENT ME!
@@ -34,7 +35,8 @@ public class WorldstateNodeTriggerHelper {
 
     //~ Static fields/initializers ---------------------------------------------
 
-    private static EntityCore entityCore = RuntimeContainer.getServer().getEntityCore("worldstates");
+    private static final Logger LOGGER = Logger.getLogger(WorldstateNodeTriggerHelper.class);
+    private static final EntityCore entityCore = RuntimeContainer.getServer().getEntityCore("worldstates");
 
     //~ Methods ----------------------------------------------------------------
 
@@ -49,15 +51,27 @@ public class WorldstateNodeTriggerHelper {
     public static String getNodeFileName(final User user, final ObjectNode worldstate) {
         final String nodePath = getNodePath(user, worldstate);
         final String id = entityCore.getObjectId(worldstate);
-        final String[] splittedNodePath = nodePath.split(File.separator);
         final StringBuilder keyBuilder = new StringBuilder();
-        if (!nodePath.isEmpty()) {
-            for (int i = 0; i < splittedNodePath.length; i++) {
-                keyBuilder.append(splittedNodePath[i]);
-                keyBuilder.append(".");
+        final String fileSeparator;
+        if(File.separator.equals("\\")) {
+            fileSeparator = "\\";
+        } else {
+            fileSeparator = File.separator;
+        
+        }
+        
+        if(nodePath.length() > 0) {
+            final String[] splittedNodePath = nodePath.split(fileSeparator);
+            if (!nodePath.isEmpty()) {
+                for (int i = 0; i < splittedNodePath.length; i++) {
+                    keyBuilder.append(splittedNodePath[i]);
+                    keyBuilder.append(".");
+                }
             }
         }
+        
         keyBuilder.append(id);
+        //LOGGER.debug("WS["+worldstate.get("id").asText()+"] - file name: '"+keyBuilder.toString()+"'");
         return keyBuilder.toString();
     }
 
@@ -96,8 +110,11 @@ public class WorldstateNodeTriggerHelper {
                 pathBuilder.append(nodePath.get(i));
                 pathBuilder.append(File.separator);
             }
+            LOGGER.debug("WS["+tmp.get("id").asText()+"] - node path: '"+pathBuilder.toString()+"'");
             return pathBuilder.toString();
         }
+        
+        LOGGER.debug("WS["+tmp.get("id").asText()+"] - no node path for WS found, probably a root WS");
         return "";
     }
 
@@ -110,6 +127,7 @@ public class WorldstateNodeTriggerHelper {
      * @return  DOCUMENT ME!
      */
     public static Node createScenarioNode(final User user, final ObjectNode jsonWorldstate) {
+        LOGGER.debug("WS["+jsonWorldstate.get("id").asText()+"] - checking if WS is a scenario node");
         // determine the id for the new Node Object
         // ToDo Check if the node id can be the same as the worldstate id
         final String name = jsonWorldstate.get("name").asText();
@@ -123,7 +141,10 @@ public class WorldstateNodeTriggerHelper {
         if (!(jsonWorldstate.hasNonNull("childworldstates")
                         && jsonWorldstate.get("childworldstates").isArray()
                         && (((ArrayNode)jsonWorldstate.get("childworldstates")).size() > 0))) {
+            LOGGER.info("WS["+jsonWorldstate.get("id").asText()+"] - node '"+name+"' is a scenario node! (leaf WS)");
             node.setLeaf(true);
+        } else {
+            LOGGER.debug("WS["+jsonWorldstate.get("id").asText()+"] - is no scenario node! (no leaf WS)");
         }
         return node;
     }

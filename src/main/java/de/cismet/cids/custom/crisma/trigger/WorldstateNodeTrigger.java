@@ -159,7 +159,7 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
 
                 // we need to move the node
                 if (pathChanged) {
-                    LOGGER.debug("WS[" + id + "] - WS parent has changed, moce the node");
+                    LOGGER.debug("WS[" + id + "] - WS parent has changed, move the node");
                     final String fileName = WorldstateNodeTriggerHelper.getNodeFileName(user, newWorldstate);
                     final Path f = new File(nodeBaseFolder + File.separator + oldParentPath + File.separator + fileName)
                             .toPath();
@@ -178,6 +178,8 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
                             Files.move(f, f2.resolve(f.getFileName()));
                         }
                     }
+                } else {
+                    LOGGER.debug("WS[" + id + "] - Path of existing node '" + nodePath + "' not changed, no need to move the node");
                 }
             }
         } catch (IOException ex) {
@@ -188,27 +190,17 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
     @Override
     public void afterInsert(final String jsonObject,
             final User user) {
-        if (LOGGER.isDebugEnabled()) {
-            //LOGGER.debug("afterInsert");
-        }
     }
 
     @Override
     public void beforeUpdate(final String jsonObject,
             final User user) {
-        if (LOGGER.isDebugEnabled()) {
-            //LOGGER.debug("beforeUpdate");
-        }
-
-        this.afterInsert(jsonObject, user);
+        this.beforeInsert(jsonObject, user);
     }
 
     @Override
     public void afterUpdate(final String jsonObject,
             final User user) {
-        if (LOGGER.isDebugEnabled()) {
-            //LOGGER.debug("afterUpdate");
-        }
     }
 
     @Override
@@ -216,15 +208,14 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
             final String classKey,
             final String objectId,
             final User user) {
-        
+
         String theClassKey = classKey;
-        
-        if(classKey.indexOf(domain) != 0) {
-            LOGGER.warn("WS["+objectId+"] - wrong class key '"+classKey+"' provided "
-                    + "in deleteObject, chaning to '" + domain + "." + classKey+"'");
+        if (classKey.indexOf(domain) != 0) {
+            LOGGER.warn("WS[" + objectId + "] - wrong class key '" + classKey + "' provided "
+                    + "in deleteObject, chaning to '" + domain + "." + classKey + "'");
             theClassKey = domain + "." + classKey;
         }
-        
+
         final ObjectNode worldstate = this.getEntityCore()
                 .getObject(
                         user,
@@ -238,19 +229,35 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
                         "default",
                         true,
                         true);
-        
-        if(worldstate != null) {
+
+        if (worldstate != null) {
             final String nodePath = WorldstateNodeTriggerHelper.getNodePath(user, worldstate);
-            final File json = new File(nodeBaseFolder + File.separator + nodePath + File.separator + objectId + ".json");
+            final String nodeFileName = WorldstateNodeTriggerHelper.getNodeFileName(user, worldstate);
+            final File json = new File(nodeBaseFolder + File.separator + nodePath + File.separator + nodeFileName + ".json");
             final File childrenFolder = new File(nodeBaseFolder + File.separator + nodePath + File.separator + objectId);
             LOGGER.info("WS[" + objectId + "] - deleting WS Node file '" + json + "'");
-            json.delete();
-            if(childrenFolder.exists()) {
-                LOGGER.debug("WS[" + objectId + "] - deleting node children folder '" + childrenFolder + "'");
-                childrenFolder.delete(); 
+            if (!json.delete()) {
+                LOGGER.warn("WS[" + objectId + "] - could not delete old scenario node '" + json + "'");
             }
+            if (childrenFolder.exists()) {
+                LOGGER.debug("WS[" + objectId + "] - deleting node children folder '" + childrenFolder + "'");
+                if (!childrenFolder.delete()) {
+                    LOGGER.warn("WS[" + objectId + "] - could not delete old scenario node children folder '" + childrenFolder + "'");
+                }
+            }
+
+            if (worldstate.hasNonNull("parentworldstate")) {
+                LOGGER.debug("WS[" + objectId + "] - WS is deleted from parent WS '"
+                        + worldstate.get("parentworldstate").get("$ref").asText() + "'");
+
+                    //TODO: here we would have to check if the parent WS still has children. If not,
+                //the 'leaf' property of the parent node has to 'true', thus a scenario node!
+                //Current workaround: The WorldstateScenarioNodeTrigger checks for
+                // isLeaf() AND childNodes.isEmpty()
+            }
+
         } else {
-            LOGGER.debug("WS[" + objectId + "] - cannot delete WS Node: WS already deleted! This should  not happen in beforeDelete operation!");
+            LOGGER.warn("WS[" + objectId + "] - cannot delete WS Node: WS already deleted! This should  not happen in beforeDelete operation!");
         }
     }
 
@@ -259,9 +266,6 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
             final String classKey,
             final String objectId,
             final User user) {
-        if (LOGGER.isDebugEnabled()) {
-            //LOGGER.debug("afterDelete");
-        }
     }
 
     @Override
@@ -317,9 +321,9 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
             } else {
                 f = new File(nodeBaseFolder + File.separator + key + ".json");
             }
-            
+
             LOGGER.debug("WS[" + id + "] - attempting to create WS Node file '" + f + "'");
-            
+
             if (!f.getParentFile().exists()) {
                 // we need to create also a node for the parent worldstate....
                 LOGGER.warn("WS[" + id + "] - parent WS Node does not exist - creating new WS Parent Node");
@@ -343,36 +347,61 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
             MAPPER.writeValue(f, node);
             final String path = ((nodePath != null) && !nodePath.isEmpty()) ? (nodePath + File.separator + id) : id;
             final File dir = new File(nodeBaseFolder + File.separator + path);
-            if(dir.exists()) {
-                LOGGER.debug("WS[" + id + "] - deleting nodes directory '"+dir+"'");
-                dir.delete();
+            if (dir.exists() && dir.isDirectory()) {
+                LOGGER.debug("WS[" + id + "] - deleting nodes directory '" + dir + "'");
+                if(!dir.delete()) {
+                    LOGGER.warn("WS[" + id + "] - could not delete nodes directory '" + dir + "'");
+                    final File[] nodesToDelete = dir.listFiles();
+                    int i = 0;
+                    for(final File nodeToDelete:nodesToDelete) {
+                        if(!nodeToDelete.delete()) {
+                            LOGGER.error("WS[" + id + "] - could not delete node file '"+nodeToDelete+"'");
+                        } else {
+                            i++;
+                        }
+                    }
+                    LOGGER.debug("WS[" + id + "] - " + i + " node files of "+nodesToDelete.length+" files in nodes directory deleted");
+                }
             }
 
             if (jsonWorldstate.hasNonNull("childworldstates")
                     && jsonWorldstate.get("childworldstates").isArray()
                     && (((ArrayNode) jsonWorldstate.get("childworldstates")).size() > 0)) {
                 // create the nodes for the child worldstates
-                LOGGER.debug("WS[" + id + "] - has child WS - creating nodes for child WS in directory '"+dir+"'");
                 final ArrayNode array = (ArrayNode) jsonWorldstate.get("childworldstates");
-                if (array.size() > 0) {
-                    dir.mkdirs();
-                    for (final JsonNode childWorldstateJson : jsonWorldstate.get("childworldstates")) {
-                        final ObjectNode cws = (ObjectNode) childWorldstateJson;
-                        final ObjectNode child = entityCore.getObject(
-                                user,
-                                entityCore.getClassKey(cws),
-                                entityCore.getObjectId(cws),
-                                "current",
-                                null,
-                                "1",
-                                null,
-                                "full",
-                                "default",
-                                true,
-                                true);
-                        final String childNodePath = ((nodePath != null) && !nodePath.isEmpty())
-                                ? (nodePath + File.separator + id) : id;
+                LOGGER.debug("WS[" + id + "] - has " + array.size() + " child WS - creating nodes for child WS in directory '" + dir + "'");
+                
+                if(!dir.exists()) {
+                    if(!dir.mkdirs()) {
+                        LOGGER.error("WS[" + id + "] - could not create nodes directory '" + dir + "'");
+                    }
+                }
+                
+                for (final JsonNode childWorldstateJson : jsonWorldstate.get("childworldstates")) {
+                    final ObjectNode cws = (ObjectNode) childWorldstateJson;
+                    final ObjectNode child = entityCore.getObject(
+                            user,
+                            entityCore.getClassKey(cws),
+                            entityCore.getObjectId(cws),
+                            "current",
+                            null,
+                            "1",
+                            null,
+                            "full",
+                            "default",
+                            true,
+                            true);
+                    final String childNodePath = ((nodePath != null) && !nodePath.isEmpty())
+                            ? (nodePath + File.separator + id) : id;
+
+//                    if (cws.hasNonNull("$ref")) {
+//                       // assume that the WS is not updated! 
+//                    }                   
+                    if (child != null) {
                         createWorldstateNode(user, child, childNodePath);
+                    } else {
+                        LOGGER.debug("WS[" + id + "] - creating child node for new child WS '" + entityCore.getObjectId(cws) + "'");
+                        createWorldstateNode(user, cws, childNodePath);
                     }
                 }
             }

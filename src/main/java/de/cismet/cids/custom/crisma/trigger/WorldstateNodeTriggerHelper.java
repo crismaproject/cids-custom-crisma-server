@@ -15,6 +15,8 @@ package de.cismet.cids.custom.crisma.trigger;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import org.apache.log4j.Logger;
+
 import java.io.File;
 
 import java.util.ArrayList;
@@ -23,7 +25,6 @@ import de.cismet.cids.server.rest.cores.EntityCore;
 import de.cismet.cids.server.rest.domain.RuntimeContainer;
 import de.cismet.cids.server.rest.domain.data.Node;
 import de.cismet.cids.server.rest.domain.types.User;
-import org.apache.log4j.Logger;
 
 /**
  * DOCUMENT ME!
@@ -53,13 +54,13 @@ public class WorldstateNodeTriggerHelper {
         final String id = entityCore.getObjectId(worldstate);
         final StringBuilder keyBuilder = new StringBuilder();
         final String fileSeparator;
-        if(File.separator.equals("\\")) {
+        if (File.separator.equals("\\")) {
             fileSeparator = "\\\\";
         } else {
             fileSeparator = File.separator;
         }
-        
-        if(nodePath.length() > 0) {
+
+        if (nodePath.length() > 0) {
             final String[] splittedNodePath = nodePath.split(fileSeparator);
             if (!nodePath.isEmpty()) {
                 for (int i = 0; i < splittedNodePath.length; i++) {
@@ -68,9 +69,9 @@ public class WorldstateNodeTriggerHelper {
                 }
             }
         }
-        
+
         keyBuilder.append(id);
-        //LOGGER.debug("WS["+worldstate.get("id").asText()+"] - file name: '"+keyBuilder.toString()+"'");
+        // LOGGER.debug("WS["+worldstate.get("id").asText()+"] - file name: '"+keyBuilder.toString()+"'");
         return keyBuilder.toString();
     }
 
@@ -109,11 +110,11 @@ public class WorldstateNodeTriggerHelper {
                 pathBuilder.append(nodePath.get(i));
                 pathBuilder.append(File.separator);
             }
-            //LOGGER.debug("WS["+tmp.get("id").asText()+"] - node path: '"+pathBuilder.toString()+"'");
+            // LOGGER.debug("WS["+tmp.get("id").asText()+"] - node path: '"+pathBuilder.toString()+"'");
             return pathBuilder.toString();
         }
-        
-        //LOGGER.debug("WS["+tmp.get("id").asText()+"] - no node path for WS found, probably a root WS");
+
+        // LOGGER.debug("WS["+tmp.get("id").asText()+"] - no node path for WS found, probably a root WS");
         return "";
     }
 
@@ -126,7 +127,9 @@ public class WorldstateNodeTriggerHelper {
      * @return  DOCUMENT ME!
      */
     public static Node createScenarioNode(final User user, final ObjectNode jsonWorldstate) {
-        LOGGER.debug("WS["+jsonWorldstate.get("id").asText()+"] - checking if WS is a scenario node");
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("WS[" + jsonWorldstate.get("id").asText() + "] - checking if WS is a scenario node");
+        }
         // determine the id for the new Node Object
         // ToDo Check if the node id can be the same as the worldstate id
         final String name = jsonWorldstate.get("name").asText();
@@ -140,10 +143,13 @@ public class WorldstateNodeTriggerHelper {
         if (!(jsonWorldstate.hasNonNull("childworldstates")
                         && jsonWorldstate.get("childworldstates").isArray()
                         && (((ArrayNode)jsonWorldstate.get("childworldstates")).size() > 0))) {
-            LOGGER.info("WS["+jsonWorldstate.get("id").asText()+"] - node '"+name+"' is a scenario node! (leaf WS)");
+            LOGGER.info("WS[" + jsonWorldstate.get("id").asText() + "] - node '" + name
+                        + "' is a scenario node! (leaf WS)");
             node.setLeaf(true);
         } else {
-            LOGGER.debug("WS["+jsonWorldstate.get("id").asText()+"] - is no scenario node! (no leaf WS)");
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("WS[" + jsonWorldstate.get("id").asText() + "] - is no scenario node! (no leaf WS)");
+            }
         }
         return node;
     }

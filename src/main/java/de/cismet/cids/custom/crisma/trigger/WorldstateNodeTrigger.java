@@ -120,8 +120,20 @@ public class WorldstateNodeTrigger extends AbstractEntityCoreAwareCidsTrigger {
                 } else {
                     // a new node is added as child
                     // build the Path up to the root node
+                    
+                    final String ref;
+                    if(newWorldstate.get("parentworldstate").hasNonNull("$ref")){
+                        ref = newWorldstate.get("parentworldstate").get("$ref").asText();
+                    } else if(newWorldstate.get("parentworldstate").hasNonNull("$self")){
+                        ref = newWorldstate.get("parentworldstate").get("$self").asText();
+                    } else {
+                        ref = "undefined";
+                        LOGGER.warn("WS[" + id + "] - parent WS '"
+                            + newWorldstate.get("parentworldstate") + "' is not a valid worldstate");
+                    }
+                    
                     LOGGER.debug("WS[" + id + "] - WS is added as new child to parent WS '"
-                            + newWorldstate.get("parentworldstate").get("$ref").asText() + "'");
+                            + ref + "'");
                     final String nodePath = WorldstateNodeTriggerHelper.getNodePath(user, newWorldstate);
                     createWorldstateNode(user, newWorldstate, nodePath);
                 }
